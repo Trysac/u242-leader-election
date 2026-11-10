@@ -9,26 +9,15 @@ go run ./scripts/check    # every gate, as CI and the factory run it
 
 ## Policy
 
-- Statement coverage of the library (every package except `scripts/`) must stay at or above 80 %;
-  the gate fails below it.
-- Tests live in package `leaderelection_test` and exercise the public API only. They assert every
-  observable effect: return values, returned errors (`errors.Is`) and their messages.
-- Prefer table-driven tests with `t.Run` subtests; document usage with runnable `Example`
-  functions, which `go test` verifies through their `// Output:` comments.
-- The race detector runs whenever cgo and a C compiler are available (always in Linux CI); the
-  gate prints why when it has to run without it.
-- Each bug fix starts with a failing test that reproduces it.
-- Tests are deterministic: no network, no wall clock, no dependence on test order.
+The tests are Go `_test.go` files in package `leaderelection_test` beside the implementation. They exercise the public API and cover the acceptance criteria: `MemoryStore` term rules with a fake clock; `Elector` callbacks, step-down, `IsLeader` and `Term`; `PostgresStore` SQL and args through an injected `Querier`, including `sql.ErrNoRows`; `RedisStore` `Eval` args; `NewElector` validation; `Run` returning `ctx.Err()` after cancellation and releasing a held lease; and `Step` with `IsLeader` under the race detector. Edge cases include two electors on one `MemoryStore` never both reporting `IsLeader()` at the same fake instant, a `Step` after context cancellation, and a nil `OnStartedLeading`.
+
+Tests assert observable effects: return values, returned errors through `errors.Is`, and error messages. They are deterministic: no network, no wall clock and no dependence on test order.
 
 ## Tiers
 
-- Local tier (every gate run, coverage measured here): unit and property tests, plus conformance on small
-  fixtures kept in the repository.
-- CI tier: conformance that needs an external tool or a download. Start the file with `//go:build conformance`; `scripts/check` adds `-tags=conformance` only in CI
-  (unless `FABRICA_CI=1`). The CI `conformance` job sets `FABRICA_CI=1` and runs the full suite. Tools are installed
-  by the optional `ci/conformance-setup.sh` (bash, CI only; verify every download against a pinned SHA-256), and
-  tagged tests skip cleanly when their tool is missing.
+- Local tier: unit and property tests, plus conformance on small fixtures kept in the repository.
+- CI tier: conformance that needs an external tool or a download. Start the file with `//go:build conformance`; `scripts/check` adds `-tags=conformance` only in CI unless `FABRICA_CI=1`. The CI `conformance` job sets `FABRICA_CI=1` and runs the full suite. Tagged tests skip cleanly when their tool is missing.
 
 ## Layout
 
-`<file>_test.go` sits next to the file it tests. Fixtures and golden files go in `testdata/`.
+`<file>_test.go` sits next to the file it tests. Fixtures and golden files go in `testdata/` if present. The specification does not enumerate individual test file names.
