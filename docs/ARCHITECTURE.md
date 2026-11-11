@@ -1,30 +1,9 @@
 # Architecture
 
-## Purpose
+This package implements lease-based leader election with a small `Store` interface. The core design decisions are:
 
-`github.com/Trysac/u242-leader-election` is a small, dependency-free Go library: Lease-based leader election for Go services over Postgres or Redis: exact SQL and Lua, monotonically increasing terms, step-down before the lease expires and an in-memory store
-
-## Shape
-
-```text
-caller code --> package leaderelection (repository root)
-                    |
-                    +-- pure functions, no I/O, no global mutable state
-                    +-- internal/ (optional private helpers)
-```
-
-- **Public API**: every exported identifier of the root package. Unexported identifiers and
-  `internal/` packages may change without a major version.
-- **Errors**: invalid input returns an error; exported sentinel errors (such as `ErrBlank`) let
-  callers branch with `errors.Is`. The library never panics on input, prints or exits.
-- **Side effects**: none. If a feature needs I/O, accept an interface (`io.Reader` or a small
-  custom one) instead of opening resources, and record the choice in an ADR.
-
-## Quality contract
-
-`scripts/check` is the single definition of the gates; `fabrica.json` tells the factory and CI
-how to run it. See [TESTING.md](TESTING.md).
-
-## Decisions
-
-Architecture decisions are recorded in [decisions/](decisions/) as numbered ADRs.
+- **Fencing tokens**: each lease holds a monotonically increasing `Term` that only increases when the holder changes or a holder re-acquires after expiry. This allows stale leaders to be detected and fenced.
+- **Clock injection**: the `MemoryStore` and `Elector` accept a `Now` function, enabling deterministic tests without real waits.
+- **Exact SQL and Lua**: the `PostgresStore` and `RedisStore` execute carefully crafted statements/scripts to ensure atomicity and the exact term semantics.
+- **Elector state machine**: `Step` attempts acquisition and updates local state; leadership is considered valid only until the local deadline passes. Callbacks are invoked outside locks.
+- **Testing strategy**: unit tests cover all acceptance criteria with fake clocks and stores; conformance tests may run against real databases in CI.
